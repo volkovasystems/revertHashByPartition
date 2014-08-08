@@ -1,0 +1,3 @@
+[submodule "calculatePartition"]
+	path = calculatePartition
+	url = https://github.com/volkovasystems/calculatePartition.git
