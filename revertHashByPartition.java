@@ -23,12 +23,9 @@ public class revertHashByPartition{
 
             return;
         }
-
-        
-
     }
 
     public static final String revertHashByPartition( String hash, String dictionary, int length ){
-        
+
     }
 }
