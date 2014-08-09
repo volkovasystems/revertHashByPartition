@@ -1,5 +1,7 @@
 package revertHashByPartition;
 
+import static calculatePartition.calculatePartition.calculatePartition;
+
 public class revertHashByPartition{
 
     public static void main( String... parameterList ){
@@ -22,11 +24,11 @@ public class revertHashByPartition{
             return;
         }
 
-
+        
 
     }
 
-    public static final String revertHashByPartition(  ){
-
+    public static final String revertHashByPartition( String hash, String dictionary, int length ){
+        
     }
 }
