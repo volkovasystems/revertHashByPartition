@@ -2,6 +2,7 @@ package revertHashByPartition;
 
 import java.math.RoundingMode;
 import java.math.BigDecimal;
+import java.util.Stack;
 
 import static calculatePartition.calculatePartition.calculatePartition;
 import static revertHashAtRange.revertHashAtRange.revertHashAtRange;
@@ -185,7 +186,7 @@ public class revertHashByPartition{
 
 			partitionSize = ( new BigDecimal( size ) ).divide( partitionCount, 0, RoundingMode.FLOOR );
 
-			lastPartitionSize = partitionSize.subtract( partitionCount.subtract( BigDecimal.ONE ).multiply( partitionSize ) );
+			lastPartitionSize = ( new BigDecimal( size ) ).subtract( partitionCount.subtract( BigDecimal.ONE ).multiply( partitionSize ) );
 		}
 		
 		System.out.println( "partitionCount: " + partitionCount.toString( ) );
@@ -193,7 +194,142 @@ public class revertHashByPartition{
 		System.out.println( "lastPartitionSize: " + lastPartitionSize.toString( ) );
 		
 
+		/*Thread loopThread = new Thread( ){
+			@override
+			public void run( ){
+
+			}
+		};
+
+		loopThread.start( );
+
+		for( BigDecimal index = BigDecimal.ONE;
+			index.compareTo( partitionCount ) <= 0;
+			index = index.add( BigDecimal.ONE ) )
+		{
+
+		}*/
+
+		PartitionData partitionData = new PartitionData( 
+			dictionaryList,
+			endingSequence,
+			totalSequenceCount,
+			startingIndex,
+			partitionCount,
+			partitionSize,
+			lastPartitionSize
+		);
+
+		Distributor distributor = new Distributor( partitionData ){
+			public void callback( ){
+				System.out.println( "Distributor callback called!" );
+			}
+		};
+		Thread distributorEngine = new Thread( distributor );
+		distributorEngine.start( );
+
 		return;
 
+	}
+
+	private static class Executor implements Runnable{
+		private volatile PartitionData partitionData = null;
+
+		public Executor( PartitionData partitionData ){
+			this.partitionData = partitionData;
+		}
+
+		public void run( ){
+			synchronized( this.partitionData ){
+				BigDecimal[ ] indexRange = this.partitionData.rangeList.pop( );
+				BigDecimal startingIndex = indexRange[ 0 ];
+				BigDecimal endingIndex = indexRange[ 1 ];
+				//System.out.println( startingIndex.toString( ) + ", " + endingIndex.toString( ) );
+
+				this.callback( );
+			}
+		}
+
+		public void callback( ){ }
+	}
+
+	//12355225
+	//12356630
+
+	private static class Distributor implements Runnable{
+		private static volatile PartitionData partitionData = null;
+
+		public Distributor( PartitionData partitionData ){
+			this.partitionData = partitionData;
+		}
+
+		public void run( ){
+			synchronized( this.partitionData ){
+				PartitionData partitionData = this.partitionData;
+				BigDecimal nextStartingIndex = partitionData.startingIndex;
+
+				final Distributor self = this;
+
+				for( 
+					BigDecimal index = BigDecimal.ONE;
+					index.compareTo( partitionData.partitionCount ) <= 0;
+					index = index.add( BigDecimal.ONE )
+				){
+					BigDecimal endingIndex = nextStartingIndex.add( partitionData.partitionSize ).subtract( BigDecimal.ONE );
+					//System.out.println( "Current index: " + index.toString( ) + " endingIndex: " + endingIndex.toString( ) );
+					BigDecimal[ ] indexRange = new BigDecimal[ ]{ nextStartingIndex, endingIndex };
+
+					nextStartingIndex = endingIndex.add( BigDecimal.ONE );
+
+					partitionData.rangeList.push( indexRange );
+
+					Executor executor = new Executor( partitionData ){
+						public void callback( ){
+							//System.out.println( "Executor callback called!" );
+							if( self.partitionData.rangeList.empty( ) ){
+								self.callback( );
+							}
+						}
+					};
+					Thread executorEngine = new Thread( executor );
+					executorEngine.start( );
+				}
+			}
+		}
+
+		public void callback( ){ };
+	}
+
+	private static final class PartitionData{
+		public static volatile String[ ] dictionaryList = null;
+		public static volatile String endingSequence = null;
+		public static volatile BigDecimal totalSequenceCount = null;
+		public static volatile BigDecimal startingIndex = null;
+		public static volatile BigDecimal partitionCount = null;
+		public static volatile BigDecimal partitionSize = null;
+		public static volatile BigDecimal lastPartitionSize = null;
+
+		public static volatile Stack<BigDecimal[ ]> rangeList = new Stack<>( );
+		public static volatile Stack<String> resultList = new Stack<>( );
+
+		public PartitionData( ){ }
+
+		public PartitionData( 
+			String[ ] dictionaryList, 
+			String endingSequence, 
+			BigDecimal totalSequenceCount,
+			BigDecimal startingIndex,
+			BigDecimal partitionCount,
+			BigDecimal partitionSize,
+			BigDecimal lastPartitionSize 
+		){
+			PartitionData.dictionaryList = dictionaryList;
+			PartitionData.endingSequence = endingSequence;
+			PartitionData.totalSequenceCount = totalSequenceCount;
+			PartitionData.startingIndex = startingIndex;
+			PartitionData.partitionCount = partitionCount;
+			PartitionData.partitionSize = partitionSize;
+			PartitionData.lastPartitionSize = lastPartitionSize;
+		}
 	}
 }
