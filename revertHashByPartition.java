@@ -80,11 +80,12 @@ public class revertHashByPartition{
 	private static final String DEFAULT_ROOT_FACTOR = "2";
 	private static final String DEFAULT_STARTING_INDEX = "0";
 	private static final String DEFAULT_PARTITION_SIZE = "0";
+	private static final String DEFAULT_ALGORITHM_TYPE = "md5";
 
 	public static void main( String... parameterList ){
 		int parameterListLength = parameterList.length;
 		if( parameterListLength == 0 ||
-			parameterListLength > 7 )
+			parameterListLength > 8 )
 		{
 			Exception exception = new Exception( "invalid parameter list" );
 			System.err.print( exception.getMessage( ) );
@@ -130,20 +131,30 @@ public class revertHashByPartition{
 		}else if( parameterListLength == 6 ){
 			separator = parameterList[ 5 ];
 		}
-		
-		if( parameterListLength == 7 ){
+
+		String algorithmType = DEFAULT_ALGORITHM_TYPE;
+		if( parameterListLength >= 7 &&
+			parameterList[ 6 ].toLowerCase( ).matches( "md5|sha" ) )
+		{
+			algorithmType = parameterList[ 6 ];
+
+		}else if( parameterListLength == 7 ){
 			separator = parameterList[ 6 ];
+		}
+		
+		if( parameterListLength == 8 ){
+			separator = parameterList[ 7 ];
 		}
 
 		try{
-			revertHashByPartition( hash, dictionary, length, rootFactor, index, size, separator );	
+			revertHashByPartition( hash, dictionary, length, rootFactor, index, size, algorithmType, separator );	
 
 		}catch( Exception exception ){
 			System.err.print( exception.getMessage( ) );
 		}
 	}
 
-	public static final void revertHashByPartition( String hash, String dictionary, int length, String rootFactor, String index, String size, String separator )
+	public static final void revertHashByPartition( String hash, String dictionary, int length, String rootFactor, String index, String size, String algorithmType, String separator )
 		throws Exception
 	{
 		System.out.println( "Hash: " + hash + "\nDictionary: " + dictionary + "\nLength: " + length + "\nRoot factor: " + rootFactor + "\nIndex: " + index + "\nSize: " + size + "\nSeparator: " + separator );
@@ -192,44 +203,42 @@ public class revertHashByPartition{
 		System.out.println( "partitionCount: " + partitionCount.toString( ) );
 		System.out.println( "partitionSize: " + partitionSize.toString( ) );
 		System.out.println( "lastPartitionSize: " + lastPartitionSize.toString( ) );
-		
-
-		/*Thread loopThread = new Thread( ){
-			@override
-			public void run( ){
-
-			}
-		};
-
-		loopThread.start( );
-
-		for( BigDecimal index = BigDecimal.ONE;
-			index.compareTo( partitionCount ) <= 0;
-			index = index.add( BigDecimal.ONE ) )
-		{
-
-		}*/
 
 		PartitionData partitionData = new PartitionData( 
+			hash,
+			dictionary,
 			dictionaryList,
 			endingSequence,
 			totalSequenceCount,
 			startingIndex,
 			partitionCount,
 			partitionSize,
-			lastPartitionSize
+			lastPartitionSize,
+			algorithmType,
+			separator
 		);
 
 		Distributor distributor = new Distributor( partitionData ){
-			public void callback( ){
-				System.out.println( "Distributor callback called!" );
+			public void callback( String revertedHash ){
+				System.out.print( revertedHash );
+
+				//: Start killing the threads here.
+				Thread executorEngine = null;
+				while( partitionData.executorEngineList.size( ) != 0 ){
+					executorEngine = partitionData.executorEngineList.pop( );
+					
+					if( !executorEngine.isInterrupted( ) &&
+						executorEngine.isAlive( ) )
+					{
+						executorEngine.interrupt( );	
+					}
+				}
 			}
 		};
 		Thread distributorEngine = new Thread( distributor );
 		distributorEngine.start( );
 
 		return;
-
 	}
 
 	private static class Executor implements Runnable{
@@ -241,20 +250,35 @@ public class revertHashByPartition{
 
 		public void run( ){
 			synchronized( this.partitionData ){
-				BigDecimal[ ] indexRange = this.partitionData.rangeList.pop( );
+				PartitionData partitionData = this.partitionData;
+
+				//: Do not execute this thread if there's a thread that found the match already.
+				if( partitionData.hasFinished ){
+					this.callback( null );
+
+					return;
+				}
+
+				BigDecimal[ ] indexRange = partitionData.rangeList.pop( );
 				BigDecimal startingIndex = indexRange[ 0 ];
 				BigDecimal endingIndex = indexRange[ 1 ];
-				//System.out.println( startingIndex.toString( ) + ", " + endingIndex.toString( ) );
 
-				this.callback( );
+				String revertedHash = revertHashAtRange(
+					partitionData.hash,
+					partitionData.dictionary,
+					startingIndex.toString( ),
+					endingIndex.toString( ),
+					partitionData.algorithmType,
+					partitionData.separator
+				);
+
+				this.callback( revertedHash );
 			}
 		}
 
 		public void callback( ){ }
+		public void callback( String... parameterList ){ }
 	}
-
-	//12355225
-	//12356630
 
 	private static class Distributor implements Runnable{
 		private static volatile PartitionData partitionData = null;
@@ -276,7 +300,7 @@ public class revertHashByPartition{
 					index = index.add( BigDecimal.ONE )
 				){
 					BigDecimal endingIndex = nextStartingIndex.add( partitionData.partitionSize ).subtract( BigDecimal.ONE );
-					//System.out.println( "Current index: " + index.toString( ) + " endingIndex: " + endingIndex.toString( ) );
+					
 					BigDecimal[ ] indexRange = new BigDecimal[ ]{ nextStartingIndex, endingIndex };
 
 					nextStartingIndex = endingIndex.add( BigDecimal.ONE );
@@ -284,15 +308,41 @@ public class revertHashByPartition{
 					partitionData.rangeList.push( indexRange );
 
 					Executor executor = new Executor( partitionData ){
-						public void callback( ){
-							//System.out.println( "Executor callback called!" );
-							if( self.partitionData.rangeList.empty( ) ){
-								self.callback( );
+						public void callback( String revertedHash ){
+							synchronized( self.partitionData ){
+								PartitionData partitionData = self.partitionData;
+
+								partitionData.resultCount = partitionData.resultCount.add( BigDecimal.ONE );
+
+								//: Do not execute this anymore for other threads when they are finished.
+								if( partitionData.hasFinished ){
+									return;
+								}
+
+								//: Return only if all of the threads are already processing and a thread already returns a reverted hash.
+								if( partitionData.rangeList.empty( ) &&
+									!revertedHash.equals( null ) )
+								{
+									partitionData.hasFinished = true;
+
+									self.callback( revertedHash );
+
+									return;
+								}
+
+								//: All threads are exhausted and nothing was returned.
+								if( partitionData.resultCount.compareTo( partitionData.partitionCount ) >= 0 ){
+									partitionData.hasFinished = true;
+
+									self.callback( null );
+								}
 							}
 						}
 					};
 					Thread executorEngine = new Thread( executor );
 					executorEngine.start( );
+
+					partitionData.executorEngineList.push( executorEngine );
 				}
 			}
 		}
@@ -301,6 +351,8 @@ public class revertHashByPartition{
 	}
 
 	private static final class PartitionData{
+		public static volatile String hash = null;
+		public static volatile String dictionary = null;
 		public static volatile String[ ] dictionaryList = null;
 		public static volatile String endingSequence = null;
 		public static volatile BigDecimal totalSequenceCount = null;
@@ -308,21 +360,32 @@ public class revertHashByPartition{
 		public static volatile BigDecimal partitionCount = null;
 		public static volatile BigDecimal partitionSize = null;
 		public static volatile BigDecimal lastPartitionSize = null;
+		public static volatile String algorithmType = null;
+		public static volatile String separator = null;
 
 		public static volatile Stack<BigDecimal[ ]> rangeList = new Stack<>( );
 		public static volatile Stack<String> resultList = new Stack<>( );
+		public static volatile Stack<Thread> executorEngineList = new Stack<>( );
+		public static volatile BigDecimal resultCount = BigDecimal.ZERO;
+		public static volatile boolean hasFinished = false;
 
 		public PartitionData( ){ }
 
 		public PartitionData( 
+			String hash,
+			String dictionary,
 			String[ ] dictionaryList, 
 			String endingSequence, 
 			BigDecimal totalSequenceCount,
 			BigDecimal startingIndex,
 			BigDecimal partitionCount,
 			BigDecimal partitionSize,
-			BigDecimal lastPartitionSize 
+			BigDecimal lastPartitionSize,
+			String algorithmType,
+			String separator
 		){
+			PartitionData.hash = hash;
+			PartitionData.dictionary = dictionary;
 			PartitionData.dictionaryList = dictionaryList;
 			PartitionData.endingSequence = endingSequence;
 			PartitionData.totalSequenceCount = totalSequenceCount;
@@ -330,6 +393,8 @@ public class revertHashByPartition{
 			PartitionData.partitionCount = partitionCount;
 			PartitionData.partitionSize = partitionSize;
 			PartitionData.lastPartitionSize = lastPartitionSize;
+			PartitionData.algorithmType = algorithmType;
+			PartitionData.separator = separator;
 		}
 	}
 }
