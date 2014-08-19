@@ -107,44 +107,51 @@ public class revertHashByPartition{
 			return;
 		}
 
-		String rootFactor = DEFAULT_ROOT_FACTOR;
-		if( parameterListLength >= 4 ){
-			rootFactor = parameterList[ 3 ];
-		}
-
 		String separator = EMPTY_STRING;
 		String algorithmType = DEFAULT_ALGORITHM_TYPE;
 
-		String index = DEFAULT_STARTING_INDEX;
-		if( parameterListLength >= 5 && 
-			parameterList[ 4 ].matches( "\\d+" ) )
-		{
-			index = parameterList[ 4 ];
+		String rootFactor = DEFAULT_ROOT_FACTOR;
+		if( parameterListLength >= 4 ){
+			if( parameterList[ 3 ].matches( "\\d+" ) ){
+				rootFactor = parameterList[ 3 ];
 
-		}else if( parameterList[ 4 ].toLowerCase( ).matches( "md5|sha" ) ){
-			algorithmType = parameterList[ 4 ];
+			}else if( parameterList[ 3 ].toLowerCase( ).matches( "md5|sha" ) ){
+				algorithmType = parameterList[ 3 ];
+			}
+		}else if( parameterListLength == 4 ){
+			separator = parameterList[ 3 ];	
+		}
+
+		String index = DEFAULT_STARTING_INDEX;
+		if( parameterListLength >= 5 ){
+			if( parameterList[ 4 ].matches( "\\d+" ) ){
+				index = parameterList[ 4 ];
+
+			}else if( parameterList[ 4 ].toLowerCase( ).matches( "md5|sha" ) ){
+				algorithmType = parameterList[ 4 ];
+			}
 
 		}else if( parameterListLength == 5 ){
 			separator = parameterList[ 4 ];	
 		}
 
 		String size = DEFAULT_PARTITION_SIZE;
-		if( parameterListLength >= 6 &&
-			parameterList[ 5 ].matches( "\\d+" ) )
-		{
-			size = parameterList[ 5 ];
+		if( parameterListLength >= 6 ){
+			if( parameterList[ 5 ].matches( "\\d+" ) ){
+				size = parameterList[ 5 ];
 
-		}else if( parameterList[ 5 ].toLowerCase( ).matches( "md5|sha" ) ){
-			algorithmType = parameterList[ 5 ];
+			}else if( parameterList[ 5 ].toLowerCase( ).matches( "md5|sha" ) ){
+				algorithmType = parameterList[ 5 ];
+			}
 
 		}else if( parameterListLength == 6 ){
 			separator = parameterList[ 5 ];
 		}
 
-		if( parameterListLength >= 7 &&
-			parameterList[ 6 ].toLowerCase( ).matches( "md5|sha" ) )
-		{
-			algorithmType = parameterList[ 6 ];
+		if( parameterListLength >= 7 ){
+			if( parameterList[ 6 ].toLowerCase( ).matches( "md5|sha" ) ){
+				algorithmType = parameterList[ 6 ];
+			}
 
 		}else if( parameterListLength == 7 ){
 			separator = parameterList[ 6 ];
