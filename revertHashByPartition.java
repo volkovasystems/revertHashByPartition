@@ -280,33 +280,33 @@ public class revertHashByPartition{
 
 					this.callback( NULL_STRING );
 
-					return;
-				}
+				}else{
+					BigDecimal[ ] indexRange = partitionData.rangeList.pop( );
+					BigDecimal startingIndex = indexRange[ 0 ];
+					BigDecimal endingIndex = indexRange[ 1 ];
 
-				BigDecimal[ ] indexRange = partitionData.rangeList.pop( );
-				BigDecimal startingIndex = indexRange[ 0 ];
-				BigDecimal endingIndex = indexRange[ 1 ];
+					try{
+						//System.out.println( "Generating reverted hash from: " + startingIndex.toString( ) + ", " + endingIndex.toString( ) );
+						revertedHash = revertHashAtRange(
+							partitionData.hash,
+							partitionData.dictionary,
+							startingIndex.toString( ),
+							endingIndex.toString( ),
+							partitionData.algorithmType,
+							partitionData.separator
+						);
 
-				try{
-					revertedHash = revertHashAtRange(
-						partitionData.hash,
-						partitionData.dictionary,
-						startingIndex.toString( ),
-						endingIndex.toString( ),
-						partitionData.algorithmType,
-						partitionData.separator
-					);
+						partitionData.resultList.push( revertedHash );
 
-					partitionData.resultList.push( revertedHash );
+						this.callback( revertedHash );
 
-					this.callback( revertedHash );
+					}catch( Exception exception ){
+						System.err.print( exception.getMessage( ) );
 
-				}catch( Exception exception ){
-					System.err.print( exception.getMessage( ) );
+						partitionData.resultList.push( exception.getMessage( ) );
 
-					partitionData.resultList.push( exception.getMessage( ) );
-
-					this.callback( exception.getMessage( ) );
+						this.callback( exception.getMessage( ) );
+					}
 				}
 			}
 		}
@@ -384,7 +384,7 @@ public class revertHashByPartition{
 					partitionData.executorEngineList.push( executorEngine );
 				}
 
-				while( partitionData.executorEngineList.size( ) != partitionData.resultList.size( ) );
+				//while( partitionData.executorEngineList.size( ) != partitionData.resultList.size( ) );
 			}
 		}
 
