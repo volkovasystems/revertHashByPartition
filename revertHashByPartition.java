@@ -237,12 +237,14 @@ public class revertHashByPartition{
 					while( partitionData.executorEngineList.size( ) != 0 ){
 						executorEngine = partitionData.executorEngineList.pop( );
 						
+						//: Try interrupting the thread.
 						if( !executorEngine.isInterrupted( ) &&
 							executorEngine.isAlive( ) )
 						{
 							executorEngine.interrupt( );	
 						}
 
+						//: If on this state the thread is not yet interrupted then push it back again to the executor engine list.
 						if( !executorEngine.isInterrupted( ) &&
 							executorEngine.isAlive( ) )
 						{
@@ -250,6 +252,7 @@ public class revertHashByPartition{
 						}
 					}
 
+					//: Release lock for partition data object.
 					partitionData.notifyAll( );
 				}
 			}
@@ -287,7 +290,6 @@ public class revertHashByPartition{
 					BigDecimal endingIndex = indexRange[ 1 ];
 
 					try{
-						System.out.println( "A" );
 						revertedHash = revertHashAtRange(
 							partitionData.hash,
 							partitionData.dictionary,
@@ -296,13 +298,11 @@ public class revertHashByPartition{
 							partitionData.algorithmType,
 							partitionData.separator
 						);
-						System.out.println( "B" );
 
 						partitionData.resultList.push( revertedHash );
 
-						System.out.println( "C" );
 						this.callback( NULL_EXCEPTION, revertedHash );
-						System.out.println( "D" );
+
 					}catch( Exception exception ){
 						System.err.print( exception.getMessage( ) );
 
@@ -312,6 +312,7 @@ public class revertHashByPartition{
 					}
 				}
 
+				//: Release lock for partition data object.
 				partitionData.notifyAll( );
 			}
 		}
@@ -356,17 +357,19 @@ public class revertHashByPartition{
 
 								//: Do not execute this anymore for other threads when they are finished.
 								if( partitionData.hasFinished ){
+									//: Release lock for partition data object.
 									partitionData.notifyAll( );
+
 									return;
 								}
 
 								//: Return only if a thread already returns a reverted hash.
-								System.out.println( "revertedHash: " + revertedHash.equals( NULL_STRING ) );
-								if( !revertedHash.equals( NULL_STRING ) ){
+								if( revertedHash != NULL_STRING ){
 									partitionData.hasFinished = true;
 
 									self.callback( NULL_EXCEPTION, revertedHash );
 
+									//: Release lock for partition data object.
 									partitionData.notifyAll( );
 									
 									return;
@@ -379,6 +382,7 @@ public class revertHashByPartition{
 									self.callback( NULL_EXCEPTION, NULL_STRING );
 								}
 
+								//: Release lock for partition data object.
 								partitionData.notifyAll( );
 							}
 						}
@@ -389,12 +393,18 @@ public class revertHashByPartition{
 					partitionData.executorEngineList.push( executorEngine );
 				}
 
+				/*:
+					This will make the distributor thread alive. 
+					This will always check if the engine list has been popped out and killed.
+					This wait method will release the lock of partition data for the distributor thread which holds it for 100 milliseconds. 
+				*/
 				while( partitionData.executorEngineList.size( ) != 0 ){
 					try{
 						partitionData.wait( 100 );
 
 					}catch( Exception exception ){
 						if( exception instanceof InterruptedException ){
+							//: Release lock for partition data object.
 							partitionData.notifyAll( );
 							break;
 						}
